@@ -738,12 +738,12 @@ _CONFIGS = [
             pi05=True, action_horizon=50, paligemma_variant="gemma_2b_lora"
         ).get_freeze_filter(),
         ema_decay=None,
-        val_log_interval=5000,
+        val_log_interval=2500,
         val_repo_id="behavior-1k/2025-challenge-demos",
         val_episodes_index=list(range(190, 200)),
         assets_base_dir="./outputs/assets",
         checkpoint_base_dir="./outputs/checkpoints",
-        num_workers=1,
+        num_workers=min(32, os.cpu_count() - 2),
     ),
     
     #
