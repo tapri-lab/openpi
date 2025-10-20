@@ -28,7 +28,7 @@ openpi_policy = B1KPolicyWrapper(policy, control_mode="receeding_horizon", actio
 
 ds = BehaviorLeRobotDataset(
     repo_id="behavior-1k/2025-challenge-demos",
-    root="/scr/behavior/2025-challenge-demos",
+    root="/home/behavior-1k/Documents/2025-challenge-demos",
     tasks=["turning_on_radio"],
     modalities=["rgb"],
     local_only=True,

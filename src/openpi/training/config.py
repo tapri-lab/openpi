@@ -702,7 +702,7 @@ _CONFIGS = [
             base_config=DataConfig(
                 prompt_from_task=True,
                 episodes_index=list(range(190)),
-                behavior_dataset_root="/vision/group/behavior/2025-challenge-demos",
+                behavior_dataset_root="/home/behavior-1k/Documents/2025-challenge-demos",
             ),
         ),
         weight_loader=weight_loaders.CheckpointWeightLoader("gs://openpi-assets/checkpoints/pi0_base/params"),
@@ -729,7 +729,7 @@ _CONFIGS = [
             base_config=DataConfig(
                 prompt_from_task=True,
                 episodes_index=list(range(190)),
-                behavior_dataset_root="/vision/group/behavior/2025-challenge-demos",
+                behavior_dataset_root="/home/behavior-1k/Documents/2025-challenge-demos",
             ),
         ),
         weight_loader=weight_loaders.CheckpointWeightLoader("gs://openpi-assets/checkpoints/pi05_base/params"),
