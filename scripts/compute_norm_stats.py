@@ -91,7 +91,7 @@ def main(config_name: str, max_frames: int | None = None):
     data_config = config.data.create(config.assets_dirs, config.model)
     if data_config.behavior_dataset_root:
         from omnigibson.learning.datas import BehaviorLerobotDatasetMetadata
-        from openpi.policies.b1k_policy import extract_state_from_proprio
+        from openpi.policies.b1k_policy_ik import extract_state_from_proprio
         metadata = BehaviorLerobotDatasetMetadata(
             repo_id=data_config.repo_id,
             root=data_config.behavior_dataset_root,
