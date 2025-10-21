@@ -109,7 +109,7 @@ class B1kInputs(transforms.DataTransformFn):
 
 @dataclasses.dataclass(frozen=True)
 class B1kOutputs(transforms.DataTransformFn):
-    action_dim: int = 23
+    action_dim: int = 21
     def __call__(self, data: dict) -> dict:
         # Only return the first 23 dims.
         return {"actions": np.asarray(data["actions"][:, :self.action_dim])}
