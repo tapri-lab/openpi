@@ -431,7 +431,7 @@ class LeRobotB1KIKDataConfig(DataConfigFactory):
         # Convert images to uint8 numpy arrays, add masks
         data_transforms = _transforms.Group(
             inputs=[b1k_policy_ik.B1kInputs(action_dim=model_config.action_dim, model_type=model_config.model_type)],
-            outputs=[b1k_policy_ik.B1kOutputs(action_dim=23)],
+            outputs=[b1k_policy_ik.B1kOutputs(action_dim=21)],
         )
 
         # Model transforms include things like tokenizing the prompt and action targets
