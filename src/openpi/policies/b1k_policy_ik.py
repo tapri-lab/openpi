@@ -5,7 +5,8 @@ import numpy as np
 
 from openpi import transforms
 from openpi.models import model as _model
-from omnigibson.learning.utils.eval_utils import PROPRIOCEPTION_INDICES
+from omnigibson.learning.utils.eval_utils import PROPRIOCEPTION_INDICES, ACTION_QPOS_INDICES
+from omnigibson.utils.transform_utils import quat_multiply, quat_inverse
 
 
 def make_b1k_example() -> dict:
@@ -26,12 +27,10 @@ def extract_state_from_proprio(proprio_data):
     # extract joint position
     base_qvel = proprio_data[..., PROPRIOCEPTION_INDICES["R1Pro"]["base_qvel"]]  # 3
     trunk_qpos = proprio_data[..., PROPRIOCEPTION_INDICES["R1Pro"]["trunk_qpos"]]  # 4
-    # arm_left_qpos = proprio_data[..., PROPRIOCEPTION_INDICES["R1Pro"]["arm_left_qpos"]]  #  7
-    # arm_right_qpos = proprio_data[..., PROPRIOCEPTION_INDICES["R1Pro"]["arm_right_qpos"]]  #  7
 
     eef_left_pos = proprio_data[..., PROPRIOCEPTION_INDICES["R1Pro"]["eef_left_pos"]] # 3
-    eef_right_pos = proprio_data[..., PROPRIOCEPTION_INDICES["R1Pro"]["eef_right_pos"]] # 3
     eef_left_quat = proprio_data[..., PROPRIOCEPTION_INDICES["R1Pro"]["eef_left_quat"]] # 4
+    eef_right_pos = proprio_data[..., PROPRIOCEPTION_INDICES["R1Pro"]["eef_right_pos"]] # 3
     eef_right_quat = proprio_data[..., PROPRIOCEPTION_INDICES["R1Pro"]["eef_right_quat"]] # 4
 
     left_gripper_width = proprio_data[..., PROPRIOCEPTION_INDICES["R1Pro"]["gripper_left_qpos"]].sum(axis=-1, keepdims=True)  # 1
@@ -40,11 +39,39 @@ def extract_state_from_proprio(proprio_data):
         base_qvel,
         trunk_qpos,
         eef_left_pos,
-        eef_right_pos,
         eef_left_quat,
+        eef_right_pos,
         eef_right_quat,
         left_gripper_width,
         right_gripper_width,
+    ], axis=-1)
+
+def ang_vel_from_quat(quaternions, dt):
+    dq = np.diff(quaternions, axis=0)
+    q_inv = quat_inverse(quaternions[:-1])
+    ang_vel = 2 * quat_multiply(q_inv, dq.T / dt)
+
+    return ang_vel
+
+
+def extract_action(data):
+    proprio_data = data["observation/state"]
+    delta_time = np.diff(data["timestamp"], axis=0)
+    eef_left_lin_vel = np.vstack(np.diff(proprio_data[..., PROPRIOCEPTION_INDICES["R1Pro"]["eef_left_pos"]], axis=0) / delta_time, np.zeros(1,3))
+    eef_right_lin_vel = np.vstack(np.diff(proprio_data[..., PROPRIOCEPTION_INDICES["R1Pro"]["eef_right_pos"]], axis=0) / delta_time, np.zeros(1,3))
+
+    eef_left_ang_vel = np.vstack(ang_vel_from_quat(proprio_data[..., PROPRIOCEPTION_INDICES["R1Pro"]["eef_right_quat"]], delta_time), np.zeros(1,3))
+    eef_right_ang_vel = np.vstack(ang_vel_from_quat(proprio_data[..., PROPRIOCEPTION_INDICES["R1Pro"]["eef_right_quat"]], delta_time), np.zeros(1,3))
+    
+    return np.concatenate([
+        data["action"][..., ACTION_QPOS_INDICES["R1Pro"]["base"]],
+        data["action"][..., ACTION_QPOS_INDICES["R1Pro"]["torso"]],
+        eef_left_lin_vel,
+        eef_left_ang_vel,
+        data["action"][..., ACTION_QPOS_INDICES["R1Pro"]["left_gripper"]],
+        eef_right_lin_vel,
+        eef_right_ang_vel,
+        data["action"][..., ACTION_QPOS_INDICES["R1Pro"]["right_gripper"]],
     ], axis=-1)
 
 
@@ -71,7 +98,7 @@ class B1kInputs(transforms.DataTransformFn):
         # extract joint position
         state = extract_state_from_proprio(proprio_data)
         if "actions" in data:
-            action =  data["actions"]
+            action =  extract_action(data)
 
         # Possibly need to parse images to uint8 (H,W,C) since LeRobot automatically
         # stores as float32 (C,H,W), gets skipped for policy inference
@@ -111,5 +138,6 @@ class B1kInputs(transforms.DataTransformFn):
 class B1kOutputs(transforms.DataTransformFn):
     action_dim: int = 21
     def __call__(self, data: dict) -> dict:
-        # Only return the first 23 dims.
-        return {"actions": np.asarray(data["actions"][:, :self.action_dim])}
+        # Only return the first 21 dims.
+        actions = extract_action(data)
+        return {"actions": np.asarray(actions[:, :self.action_dim])}
