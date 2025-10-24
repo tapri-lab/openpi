@@ -127,6 +127,183 @@ class FakeDataset(Dataset):
         return self._num_samples
 
 
+# def create_behavior_dataset(data_config: _config.DataConfig, action_horizon: int) -> Dataset:
+#     """Create a dataset for training."""
+#     from omnigibson.learning.datas.lerobot_dataset import BehaviorLeRobotDataset
+#     
+#     dataset = BehaviorLeRobotDataset(
+#         repo_id=data_config.repo_id,
+#         root=data_config.behavior_dataset_root,
+#         tasks=["turning_on_radio"],
+#         modalities=["rgb"],
+#         local_only=True,
+#         delta_timestamps={
+#             key: [t / 30.0 for t in range(action_horizon)] for key in data_config.action_sequence_keys
+#         },
+#         episodes=data_config.episodes_index,
+#         chunk_streaming_using_keyframe=True,
+#         shuffle=True,
+#     )
+# 
+#     def quaternion_multiply(q1, q2):
+#         """Multiply two quaternions q1 * q2"""
+#         w1, x1, y1, z1 = q1
+#         w2, x2, y2, z2 = q2
+#         w = w1*w2 - x1*x2 - y1*y2 - z1*z2
+#         x = w1*x2 + x1*w2 + y1*z2 - z1*y2
+#         y = w1*y2 - x1*z2 + y1*w2 + z1*x2
+#         z = w1*z2 + x1*y2 - y1*x2 + z1*w2
+#         return np.array([w, x, y, z])
+# 
+#     def angular_velocity_from_quaternions(q1, q2, dt):
+#         """
+#         Compute angular velocity vector (in body frame) from two quaternions q1, q2
+#         and time step dt.
+#         """
+#         q1_inv = q1 * np.array([-1, -1, -1, 1])
+#         q_delta = quaternion_multiply(q2, q1_inv)
+# 
+#         w, x, y, z = q_delta
+#         angle = 2 * np.arccos(np.clip(w, -1.0, 1.0))
+#         s = np.sqrt(1 - w*w)
+#         if s < 1e-8:  # avoid division by zero for small angles
+#             axis = np.array([1, 0, 0])  # arbitrary axis
+#         else:
+#             axis = np.array([x, y, z]) / s
+#         omega = (angle / dt) * axis
+#         return omega
+# 
+#     def repack_action(action, obs, next_obs, delta_t):
+#         from omnigibson.learning.utils.eval_utils import PROPRIOCEPTION_INDICES, ACTION_QPOS_INDICES
+# 
+#         eef_left_lin_vel = (next_obs[..., PROPRIOCEPTION_INDICES["R1Pro"]["eef_left_pos"]] - obs[..., PROPRIOCEPTION_INDICES["R1Pro"]["eef_left_pos"]]) / delta_t
+#         eef_right_lin_vel = (next_obs[..., PROPRIOCEPTION_INDICES["R1Pro"]["eef_right_pos"]] - obs[..., PROPRIOCEPTION_INDICES["R1Pro"]["eef_right_pos"]]) / delta_t
+#         eef_left_ang_vel = angular_velocity_from_quaternions(next_obs[..., PROPRIOCEPTION_INDICES["R1Pro"]["eef_right_quat"]],
+#                                                              obs[..., PROPRIOCEPTION_INDICES["R1Pro"]["eef_right_quat"]],
+#                                                              delta_t)
+#         eef_right_ang_vel = angular_velocity_from_quaternions(next_obs[..., PROPRIOCEPTION_INDICES["R1Pro"]["eef_right_quat"]],
+#                                                               obs[..., PROPRIOCEPTION_INDICES["R1Pro"]["eef_right_quat"]],
+#                                                               delta_t)
+#         return np.concatenate([
+#             action[..., ACTION_QPOS_INDICES["R1Pro"]["base"]],
+#             action[..., ACTION_QPOS_INDICES["R1Pro"]["torso"]],
+#             [eef_left_lin_vel] * action.shape[0],
+#             [eef_left_ang_vel] * action.shape[0],
+#             np.zeros((action.shape[0], 1)),
+#             action[..., ACTION_QPOS_INDICES["R1Pro"]["left_gripper"]],
+#             [eef_right_lin_vel] * action.shape[0],
+#             [eef_right_ang_vel] * action.shape[0],
+#             np.zeros((action.shape[0], 1)),
+#             action[..., ACTION_QPOS_INDICES["R1Pro"]["right_gripper"]],
+#         ], axis=-1)
+# 
+#     print(dataset[0]["action"].shape)
+#     num_samples = dataset[-1]["index"]
+#     for i in range(num_samples):
+#         if i == num_samples - 1:
+#             dataset[i]["action"] = np.asarray(repack_action(dataset[i]["action"],
+#                                 dataset[i]["observation.state"],
+#                                 dataset[i]["observation.state"],
+#                                 dataset[i]["timestamp"] - dataset[i]["timestamp"]), dtype=np.float32)
+#         else:
+#             dataset[i]["action"] = np.asarray(repack_action(dataset[i]["action"],
+#                                 dataset[i]["observation.state"],
+#                                 dataset[i+1]["observation.state"],
+#                                 dataset[i+1]["timestamp"] - dataset[i]["timestamp"]), dtype=np.float32)
+# 
+#     print(dataset[0]["action"].shape)
+#     print(dataset.meta)
+#     if data_config.prompt_from_task:
+#         dataset = TransformedDataset(dataset, [_transforms.PromptFromLeRobotTask(dataset.meta.tasks)])
+#     return dataset
+
+def quaternion_multiply(q1, q2):
+    """Multiply two quaternions q1 * q2"""
+    w1, x1, y1, z1 = q1
+    w2, x2, y2, z2 = q2
+    w = w1*w2 - x1*x2 - y1*y2 - z1*z2
+    x = w1*x2 + x1*w2 + y1*z2 - z1*y2
+    y = w1*y2 - x1*z2 + y1*w2 + z1*x2
+    z = w1*z2 + x1*y2 - y1*x2 + z1*w2
+    return np.array([w, x, y, z])
+
+def angular_velocity_from_quaternions(q1, q2, dt):
+    """
+    Compute angular velocity vector (in body frame) from two quaternions q1, q2
+    and time step dt.
+    """
+    q1_inv = q1 * np.array([-1, -1, -1, 1])
+    q_delta = quaternion_multiply(q2, q1_inv)
+
+    w, x, y, z = q_delta
+    angle = 2 * np.arccos(np.clip(w, -1.0, 1.0))
+    s = np.sqrt(1 - w*w)
+    if s < 1e-8:  # avoid division by zero for small angles
+        axis = np.array([1, 0, 0])  # arbitrary axis
+    else:
+        axis = np.array([x, y, z]) / s
+    omega = (angle / dt) * axis
+    return omega
+
+def repack_action(action, obs, next_obs, delta_t):
+    from omnigibson.learning.utils.eval_utils import PROPRIOCEPTION_INDICES, ACTION_QPOS_INDICES
+
+    eef_left_lin_vel = (next_obs[..., PROPRIOCEPTION_INDICES["R1Pro"]["eef_left_pos"]] - obs[..., PROPRIOCEPTION_INDICES["R1Pro"]["eef_left_pos"]]) / delta_t
+    eef_right_lin_vel = (next_obs[..., PROPRIOCEPTION_INDICES["R1Pro"]["eef_right_pos"]] - obs[..., PROPRIOCEPTION_INDICES["R1Pro"]["eef_right_pos"]]) / delta_t
+    eef_left_ang_vel = angular_velocity_from_quaternions(next_obs[..., PROPRIOCEPTION_INDICES["R1Pro"]["eef_right_quat"]],
+                                                            obs[..., PROPRIOCEPTION_INDICES["R1Pro"]["eef_right_quat"]],
+                                                            delta_t)
+    eef_right_ang_vel = angular_velocity_from_quaternions(next_obs[..., PROPRIOCEPTION_INDICES["R1Pro"]["eef_right_quat"]],
+                                                            obs[..., PROPRIOCEPTION_INDICES["R1Pro"]["eef_right_quat"]],
+                                                            delta_t)
+    return np.concatenate([
+        action[..., ACTION_QPOS_INDICES["R1Pro"]["base"]],
+        action[..., ACTION_QPOS_INDICES["R1Pro"]["torso"]],
+        [eef_left_lin_vel] * action.shape[0],
+        [eef_left_ang_vel] * action.shape[0],
+        action[..., ACTION_QPOS_INDICES["R1Pro"]["left_gripper"]],
+        [eef_right_lin_vel] * action.shape[0],
+        [eef_right_ang_vel] * action.shape[0],
+        action[..., ACTION_QPOS_INDICES["R1Pro"]["right_gripper"]],
+        np.zeros((action.shape[0], 1)),
+        np.zeros((action.shape[0], 1)),
+    ], axis=-1)
+
+from omnigibson.learning.datas.lerobot_dataset import BehaviorLeRobotDataset
+class AddRepackedAction(Dataset[T_co]):
+    def __init__(self, base_dataset):
+        self.base_dataset = base_dataset
+
+    def __getattr__(self, name):
+        return getattr(self.base_dataset, name)
+
+    def __len__(self):
+        return len(self.base_dataset)
+
+    def __getitem__(self, idx):
+        item = self.base_dataset[idx]
+        if idx + 1 < len(self.base_dataset):
+            next_item = self.base_dataset[idx + 1]
+            # ensure same episode
+            if next_item["episode_index"] != item["episode_index"]:
+                next_item = item
+        else:
+            next_item = item
+
+        obs = item["observation"]["state"]
+        next_obs = next_item["observation"]["state"]
+        delta_t = float(next_item["timestamp"] - item["timestamp"])
+
+        repacked = repack_action(
+            np.asarray(item["action"]),
+            np.asarray(obs),
+            np.asarray(next_obs),
+            delta_t
+        )
+
+        item["repacked_action"] = repacked.astype(np.float32)
+        return item
+
 def create_behavior_dataset(data_config: _config.DataConfig, action_horizon: int) -> Dataset:
     """Create a dataset for training."""
     from omnigibson.learning.datas.lerobot_dataset import BehaviorLeRobotDataset
@@ -145,11 +322,24 @@ def create_behavior_dataset(data_config: _config.DataConfig, action_horizon: int
         shuffle=True,
     )
 
+    num_samples = dataset[-1]["index"]
+
+    #dataset = AddRepackedAction(dataset)
+    for i in range(num_samples):
+        if i == num_samples - 1:
+            dataset[i]["action"] = repack_action(dataset[i]["action"],
+                                dataset[i]["observation.state"],
+                                dataset[i]["observation.state"],
+                                dataset[i]["timestamp"] - dataset[i]["timestamp"])
+        else:
+            dataset[i]["action"] = repack_action(dataset[i]["action"],
+                                dataset[i]["observation.state"],
+                                dataset[i+1]["observation.state"],
+                                dataset[i+1]["timestamp"] - dataset[i]["timestamp"])
+
     if data_config.prompt_from_task:
         dataset = TransformedDataset(dataset, [_transforms.PromptFromLeRobotTask(dataset.meta.tasks)])
-
     return dataset
-
 
 def create_torch_dataset(
     data_config: _config.DataConfig, action_horizon: int, model_config: _model.BaseModelConfig
@@ -311,7 +501,8 @@ def create_behavior_data_loader(
         sharding=sharding,
         shuffle=shuffle,
         num_batches=num_batches,
-        num_workers=config.num_workers,
+        num_workers=0,
+        #num_workers=config.num_workers,
         seed=config.seed,
     )
     
