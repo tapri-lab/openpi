@@ -227,23 +227,70 @@ def quaternion_multiply(q1, q2):
     z = w1*z2 + x1*y2 - y1*x2 + z1*w2
     return np.array([w, x, y, z])
 
+    #def angular_velocity_from_quaternions(q1, q2, dt):
+    #    """
+    #    Compute angular velocity vector (in body frame) from two quaternions q1, q2
+    #    and time step dt.
+    #    """
+    #    q1_inv = q1 * np.array([1, -1, -1, -1])
+    #    q_delta = quaternion_multiply(q2, q1_inv)
+    #
+    #    w, x, y, z = q_delta
+    #    angle = 2 * np.arccos(np.clip(w, -1.0, 1.0))
+    #    s = np.sqrt(1 - w*w)
+    #    if s < 1e-8:  # avoid division by zero for small angles
+    #        axis = np.array([1, 0, 0])  # arbitrary axis
+    #    else:
+    #        axis = np.array([x, y, z]) / s
+    #    omega = (angle / dt) * axis
+    #    return omega
 def angular_velocity_from_quaternions(q1, q2, dt):
     """
     Compute angular velocity vector (in body frame) from two quaternions q1, q2
-    and time step dt.
+    and time step dt, using only NumPy.
+    
+    q1, q2: [w, x, y, z]
+    dt: time step
     """
-    q1_inv = q1 * np.array([-1, -1, -1, 1])
-    q_delta = quaternion_multiply(q2, q1_inv)
-
-    w, x, y, z = q_delta
-    angle = 2 * np.arccos(np.clip(w, -1.0, 1.0))
-    s = np.sqrt(1 - w*w)
-    if s < 1e-8:  # avoid division by zero for small angles
-        axis = np.array([1, 0, 0])  # arbitrary axis
-    else:
-        axis = np.array([x, y, z]) / s
-    omega = (angle / dt) * axis
+    # Convert quaternions to rotation matrices
+    R1 = quat_to_rot_matrix(q1)
+    R2 = quat_to_rot_matrix(q2)
+    
+    # Relative rotation in body frame
+    R_delta = R1.T @ R2
+    
+    # Rotation vector
+    rotvec = rotation_matrix_to_rotvec(R_delta)
+    
+    # Angular velocity
+    omega = rotvec / dt
     return omega
+
+def quat_to_rot_matrix(q):
+    """
+    Convert quaternion [w, x, y, z] to 3x3 rotation matrix.
+    """
+    x, y, z, w = q
+    R = np.array([
+        [1 - 2*(y**2 + z**2),     2*(x*y - z*w),       2*(x*z + y*w)],
+        [2*(x*y + z*w),           1 - 2*(x**2 + z**2), 2*(y*z - x*w)],
+        [2*(x*z - y*w),           2*(y*z + x*w),       1 - 2*(x**2 + y**2)]
+    ])
+    return R
+
+def rotation_matrix_to_rotvec(R):
+    """
+    Convert rotation matrix to rotation vector (axis-angle representation).
+    """
+    angle = np.arccos(np.clip((np.trace(R) - 1) / 2, -1.0, 1.0))
+    if np.isclose(angle, 0):
+        return np.zeros(3)
+    else:
+        rx = (R[2,1] - R[1,2]) / (2*np.sin(angle))
+        ry = (R[0,2] - R[2,0]) / (2*np.sin(angle))
+        rz = (R[1,0] - R[0,1]) / (2*np.sin(angle))
+        axis = np.array([rx, ry, rz])
+        return axis * angle
 
 def repack_action(action, obs, next_obs, delta_t):
     from omnigibson.learning.utils.eval_utils import PROPRIOCEPTION_INDICES, ACTION_QPOS_INDICES
@@ -290,9 +337,11 @@ class AddRepackedAction(Dataset[T_co]):
         else:
             next_item = item
 
-        obs = item["observation"]["state"]
-        next_obs = next_item["observation"]["state"]
+        obs = item["observation.state"]
+        next_obs = next_item["observation.state"]
         delta_t = float(next_item["timestamp"] - item["timestamp"])
+        if delta_t == 0:
+            delta_t = 1e-8
 
         repacked = repack_action(
             np.asarray(item["action"]),
@@ -324,18 +373,18 @@ def create_behavior_dataset(data_config: _config.DataConfig, action_horizon: int
 
     num_samples = dataset[-1]["index"]
 
-    #dataset = AddRepackedAction(dataset)
-    for i in range(num_samples):
-        if i == num_samples - 1:
-            dataset[i]["action"] = repack_action(dataset[i]["action"],
-                                dataset[i]["observation.state"],
-                                dataset[i]["observation.state"],
-                                dataset[i]["timestamp"] - dataset[i]["timestamp"])
-        else:
-            dataset[i]["action"] = repack_action(dataset[i]["action"],
-                                dataset[i]["observation.state"],
-                                dataset[i+1]["observation.state"],
-                                dataset[i+1]["timestamp"] - dataset[i]["timestamp"])
+    dataset = AddRepackedAction(dataset)
+    #for i in range(num_samples):
+    #    if i == num_samples - 1:
+    #        dataset[i]["action"] = repack_action(dataset[i]["action"],
+    #                            dataset[i]["observation.state"],
+    #                            dataset[i]["observation.state"],
+    #                            dataset[i]["timestamp"] - dataset[i]["timestamp"])
+    #    else:
+    #        dataset[i]["action"] = repack_action(dataset[i]["action"],
+    #                            dataset[i]["observation.state"],
+    #                            dataset[i+1]["observation.state"],
+    #                            dataset[i+1]["timestamp"] - dataset[i]["timestamp"])
 
     if data_config.prompt_from_task:
         dataset = TransformedDataset(dataset, [_transforms.PromptFromLeRobotTask(dataset.meta.tasks)])
