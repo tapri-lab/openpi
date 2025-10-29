@@ -244,7 +244,7 @@ def quaternion_multiply(q1, q2):
     #        axis = np.array([x, y, z]) / s
     #    omega = (angle / dt) * axis
     #    return omega
-def angular_velocity_from_quaternions(q1, q2, dt):
+def angular_velocity_from_quaternions(q1, q2):
     """
     Compute angular velocity vector (in body frame) from two quaternions q1, q2
     and time step dt, using only NumPy.
@@ -261,10 +261,8 @@ def angular_velocity_from_quaternions(q1, q2, dt):
     
     # Rotation vector
     rotvec = rotation_matrix_to_rotvec(R_delta)
-    
-    # Angular velocity
-    omega = rotvec / dt
-    return omega
+ 
+    return rotvec
 
 def quat_to_rot_matrix(q):
     """
@@ -295,14 +293,12 @@ def rotation_matrix_to_rotvec(R):
 def repack_action(action, obs, next_obs, delta_t):
     from omnigibson.learning.utils.eval_utils import PROPRIOCEPTION_INDICES, ACTION_QPOS_INDICES
 
-    eef_left_lin_vel = (next_obs[..., PROPRIOCEPTION_INDICES["R1Pro"]["eef_left_pos"]] - obs[..., PROPRIOCEPTION_INDICES["R1Pro"]["eef_left_pos"]]) / delta_t
-    eef_right_lin_vel = (next_obs[..., PROPRIOCEPTION_INDICES["R1Pro"]["eef_right_pos"]] - obs[..., PROPRIOCEPTION_INDICES["R1Pro"]["eef_right_pos"]]) / delta_t
+    eef_left_lin_vel = (next_obs[..., PROPRIOCEPTION_INDICES["R1Pro"]["eef_left_pos"]] - obs[..., PROPRIOCEPTION_INDICES["R1Pro"]["eef_left_pos"]])
+    eef_right_lin_vel = (next_obs[..., PROPRIOCEPTION_INDICES["R1Pro"]["eef_right_pos"]] - obs[..., PROPRIOCEPTION_INDICES["R1Pro"]["eef_right_pos"]])
     eef_left_ang_vel = angular_velocity_from_quaternions(next_obs[..., PROPRIOCEPTION_INDICES["R1Pro"]["eef_right_quat"]],
-                                                            obs[..., PROPRIOCEPTION_INDICES["R1Pro"]["eef_right_quat"]],
-                                                            delta_t)
+                                                            obs[..., PROPRIOCEPTION_INDICES["R1Pro"]["eef_right_quat"]])
     eef_right_ang_vel = angular_velocity_from_quaternions(next_obs[..., PROPRIOCEPTION_INDICES["R1Pro"]["eef_right_quat"]],
-                                                            obs[..., PROPRIOCEPTION_INDICES["R1Pro"]["eef_right_quat"]],
-                                                            delta_t)
+                                                            obs[..., PROPRIOCEPTION_INDICES["R1Pro"]["eef_right_quat"]])
     return np.concatenate([
         action[..., ACTION_QPOS_INDICES["R1Pro"]["base"]],
         action[..., ACTION_QPOS_INDICES["R1Pro"]["torso"]],
@@ -312,8 +308,6 @@ def repack_action(action, obs, next_obs, delta_t):
         [eef_right_lin_vel] * action.shape[0],
         [eef_right_ang_vel] * action.shape[0],
         action[..., ACTION_QPOS_INDICES["R1Pro"]["right_gripper"]],
-        np.zeros((action.shape[0], 1)),
-        np.zeros((action.shape[0], 1)),
     ], axis=-1)
 
 from omnigibson.learning.datas.lerobot_dataset import BehaviorLeRobotDataset

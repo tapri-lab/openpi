@@ -46,35 +46,32 @@ def extract_state_from_proprio(proprio_data):
         right_gripper_width,
     ], axis=-1)
 
-def ang_vel_from_quat(quaternions, dt):
+def ang_delta_from_quat(quaternions):
     dq = np.diff(quaternions, axis=0)
     q_inv = quat_inverse(quaternions[:-1])
-    ang_vel = 2 * quat_multiply(q_inv, dq.T / dt)
+    ang_delta = 2 * quat_multiply(q_inv, dq.T)
 
-    return ang_vel
+    return ang_delta
 
 
-def extract_action(data):
-    proprio_data = data["observation/state"]
-    # TODO: Get the delta t from dataset
-    delta_time = 0.1 / 3.
-    eef_left_lin_vel = np.vstack((np.diff(proprio_data[..., PROPRIOCEPTION_INDICES["R1Pro"]["eef_left_pos"]], axis=0) / delta_time, np.zeros((1,3))))
-    eef_right_lin_vel = np.vstack((np.diff(proprio_data[..., PROPRIOCEPTION_INDICES["R1Pro"]["eef_right_pos"]], axis=0) / delta_time, np.zeros((1,3))))
-
-    eef_left_ang_vel = np.vstack((ang_vel_from_quat(proprio_data[..., PROPRIOCEPTION_INDICES["R1Pro"]["eef_right_quat"]], delta_time), np.zeros((1,3))))
-    eef_right_ang_vel = np.vstack((ang_vel_from_quat(proprio_data[..., PROPRIOCEPTION_INDICES["R1Pro"]["eef_right_quat"]], delta_time), np.zeros((1,3))))
-    
-
-    return np.concatenate([
-        data["action"][..., ACTION_QPOS_INDICES["R1Pro"]["base"]],
-        data["action"][..., ACTION_QPOS_INDICES["R1Pro"]["torso"]],
-        eef_left_lin_vel,
-        eef_left_ang_vel,
-        data["action"][..., ACTION_QPOS_INDICES["R1Pro"]["left_gripper"]],
-        eef_right_lin_vel,
-        eef_right_ang_vel,
-        data["action"][..., ACTION_QPOS_INDICES["R1Pro"]["right_gripper"]],
-    ], axis=-1)
+# def extract_action(data):
+#     proprio_data = data["observation/state"]
+#     eef_left_lin_vel = np.vstack((np.diff(proprio_data[..., PROPRIOCEPTION_INDICES["R1Pro"]["eef_left_pos"]], axis=0), np.zeros((1,3))))
+#     eef_right_lin_vel = np.vstack((np.diff(proprio_data[..., PROPRIOCEPTION_INDICES["R1Pro"]["eef_right_pos"]], axis=0), np.zeros((1,3))))
+# 
+#     eef_left_ang_vel = np.vstack((ang_delta_from_quat(proprio_data[..., PROPRIOCEPTION_INDICES["R1Pro"]["eef_right_quat"]]), np.zeros((1,3))))
+#     eef_right_ang_vel = np.vstack((ang_delta_from_quat(proprio_data[..., PROPRIOCEPTION_INDICES["R1Pro"]["eef_right_quat"]]), np.zeros((1,3))))
+# 
+#     return np.concatenate([
+#         data["action"][..., ACTION_QPOS_INDICES["R1Pro"]["base"]],
+#         data["action"][..., ACTION_QPOS_INDICES["R1Pro"]["torso"]],
+#         eef_left_lin_vel,
+#         eef_left_ang_vel,
+#         data["action"][..., ACTION_QPOS_INDICES["R1Pro"]["left_gripper"]],
+#         eef_right_lin_vel,
+#         eef_right_ang_vel,
+#         data["action"][..., ACTION_QPOS_INDICES["R1Pro"]["right_gripper"]],
+#     ], axis=-1)
 
 
 def _parse_image(image) -> np.ndarray:
