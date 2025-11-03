@@ -11,6 +11,7 @@ from omnigibson.learning.datas import BehaviorLerobotDatasetMetadata
 from openpi.policies import policy as _policy
 from openpi.policies import policy_config as _policy_config
 from openpi.shared.eval_b1k_wrapper import B1KPolicyWrapper
+from openpi.shared.eval_b1k_ik_wrapper import B1KIKPolicyWrapper
 from openpi.training import config as _config
 
 
@@ -84,12 +85,13 @@ def main(args: Args) -> None:
 
     policy = create_policy(args)
     policy_metadata = policy.metadata
+    print(policy_metadata)
 
     # Record the policy's behavior.
     if args.record:
         policy = _policy.PolicyRecorder(policy, "policy_records")
 
-    policy = B1KPolicyWrapper(policy, text_prompt=prompt)
+    policy = B1KIKPolicyWrapper(policy, text_prompt=prompt)
 
     hostname = socket.gethostname()
     local_ip = socket.gethostbyname(hostname)
