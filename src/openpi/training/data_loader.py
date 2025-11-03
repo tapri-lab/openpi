@@ -217,33 +217,15 @@ class FakeDataset(Dataset):
 #         dataset = TransformedDataset(dataset, [_transforms.PromptFromLeRobotTask(dataset.meta.tasks)])
 #     return dataset
 
-def quaternion_multiply(q1, q2):
-    """Multiply two quaternions q1 * q2"""
-    w1, x1, y1, z1 = q1
-    w2, x2, y2, z2 = q2
-    w = w1*w2 - x1*x2 - y1*y2 - z1*z2
-    x = w1*x2 + x1*w2 + y1*z2 - z1*y2
-    y = w1*y2 - x1*z2 + y1*w2 + z1*x2
-    z = w1*z2 + x1*y2 - y1*x2 + z1*w2
-    return np.array([w, x, y, z])
-
-    #def angular_velocity_from_quaternions(q1, q2, dt):
-    #    """
-    #    Compute angular velocity vector (in body frame) from two quaternions q1, q2
-    #    and time step dt.
-    #    """
-    #    q1_inv = q1 * np.array([1, -1, -1, -1])
-    #    q_delta = quaternion_multiply(q2, q1_inv)
-    #
-    #    w, x, y, z = q_delta
-    #    angle = 2 * np.arccos(np.clip(w, -1.0, 1.0))
-    #    s = np.sqrt(1 - w*w)
-    #    if s < 1e-8:  # avoid division by zero for small angles
-    #        axis = np.array([1, 0, 0])  # arbitrary axis
-    #    else:
-    #        axis = np.array([x, y, z]) / s
-    #    omega = (angle / dt) * axis
-    #    return omega
+# def quaternion_multiply(q1, q2):
+#     """Multiply two quaternions q1 * q2"""
+#     w1, x1, y1, z1 = q1
+#     w2, x2, y2, z2 = q2
+#     w = w1*w2 - x1*x2 - y1*y2 - z1*z2
+#     x = w1*x2 + x1*w2 + y1*z2 - z1*y2
+#     y = w1*y2 - x1*z2 + y1*w2 + z1*x2
+#     z = w1*z2 + x1*y2 - y1*x2 + z1*w2
+#     return np.array([w, x, y, z])
 def angular_velocity_from_quaternions(q1, q2):
     """
     Compute angular velocity vector (in body frame) from two quaternions q1, q2
@@ -295,18 +277,18 @@ def repack_action(action, obs, next_obs, delta_t):
 
     eef_left_lin_vel = (next_obs[..., PROPRIOCEPTION_INDICES["R1Pro"]["eef_left_pos"]] - obs[..., PROPRIOCEPTION_INDICES["R1Pro"]["eef_left_pos"]])
     eef_right_lin_vel = (next_obs[..., PROPRIOCEPTION_INDICES["R1Pro"]["eef_right_pos"]] - obs[..., PROPRIOCEPTION_INDICES["R1Pro"]["eef_right_pos"]])
-    eef_left_ang_vel = angular_velocity_from_quaternions(next_obs[..., PROPRIOCEPTION_INDICES["R1Pro"]["eef_right_quat"]],
-                                                            obs[..., PROPRIOCEPTION_INDICES["R1Pro"]["eef_right_quat"]])
+    eef_left_ang_vel = angular_velocity_from_quaternions(next_obs[..., PROPRIOCEPTION_INDICES["R1Pro"]["eef_left_quat"]],
+                                                            obs[..., PROPRIOCEPTION_INDICES["R1Pro"]["eef_left_quat"]])
     eef_right_ang_vel = angular_velocity_from_quaternions(next_obs[..., PROPRIOCEPTION_INDICES["R1Pro"]["eef_right_quat"]],
                                                             obs[..., PROPRIOCEPTION_INDICES["R1Pro"]["eef_right_quat"]])
     return np.concatenate([
         action[..., ACTION_QPOS_INDICES["R1Pro"]["base"]],
         action[..., ACTION_QPOS_INDICES["R1Pro"]["torso"]],
-        [eef_left_lin_vel] * action.shape[0],
-        [eef_left_ang_vel] * action.shape[0],
+        np.broadcast_to(eef_left_lin_vel, (action.shape[0], eef_left_lin_vel.shape[-1])),
+        np.broadcast_to(eef_left_ang_vel, (action.shape[0], eef_left_ang_vel.shape[-1])),
         action[..., ACTION_QPOS_INDICES["R1Pro"]["left_gripper"]],
-        [eef_right_lin_vel] * action.shape[0],
-        [eef_right_ang_vel] * action.shape[0],
+        np.broadcast_to(eef_right_lin_vel, (action.shape[0], eef_right_lin_vel.shape[-1])),
+        np.broadcast_to(eef_right_ang_vel, (action.shape[0], eef_right_ang_vel.shape[-1])),
         action[..., ACTION_QPOS_INDICES["R1Pro"]["right_gripper"]],
     ], axis=-1)
 
@@ -364,8 +346,6 @@ def create_behavior_dataset(data_config: _config.DataConfig, action_horizon: int
         chunk_streaming_using_keyframe=True,
         shuffle=True,
     )
-
-    num_samples = dataset[-1]["index"]
 
     dataset = AddRepackedAction(dataset)
     #for i in range(num_samples):

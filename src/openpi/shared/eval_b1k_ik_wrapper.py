@@ -7,7 +7,7 @@ import copy
 
 RESIZE_SIZE = 224
 
-class B1KPolicyWrapper():
+class B1KIKPolicyWrapper():
     def __init__(
         self, 
         policy: BasePolicy,
@@ -19,7 +19,7 @@ class B1KPolicyWrapper():
         self.text_prompt = text_prompt
         self.control_mode = control_mode
         self.action_queue = deque([], maxlen=action_horizon)
-        self.last_action = {"actions": np.zeros((action_horizon, 23), dtype=np.float64)}
+        self.last_action = {"actions": np.zeros((action_horizon, 21), dtype=np.float64)}
         self.action_horizon = action_horizon
         
         self.replan_interval = action_horizon # K: replan every 10 steps
@@ -29,7 +29,7 @@ class B1KPolicyWrapper():
     
     def reset(self):
         self.action_queue = deque([],maxlen=self.action_horizon)
-        self.last_action = {"actions": np.zeros((self.action_horizon, 23), dtype=np.float64)}
+        self.last_action = {"actions": np.zeros((self.action_horizon, 21), dtype=np.float64)}
         self.step_counter = 0
 
     def process_obs(self, obs: dict) -> dict:
@@ -119,7 +119,7 @@ class B1KPolicyWrapper():
         final_action = (actions_current_timestep * exp_weights[:, None]).sum(axis=0)
 
         # Preserve grippers from most recent rollout
-        final_action[-9] = actions_current_timestep[0, -9]
+        final_action[-8] = actions_current_timestep[0, -8]
         final_action[-1] = actions_current_timestep[0, -1]
         final_action = final_action[None]
 
@@ -212,7 +212,7 @@ class B1KPolicyWrapper():
             exp_weights = exp_weights / exp_weights.sum()
 
             final_action = (actions_current_timestep * exp_weights[:, None]).sum(axis=0)
-            final_action[-9] = target_joint_positions[0, -9]
+            final_action[-8] = target_joint_positions[0, -8]
             final_action[-1] = target_joint_positions[0, -1]
             final_action = final_action[None]
         else:
