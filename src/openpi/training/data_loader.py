@@ -329,7 +329,7 @@ class AddRepackedAction(Dataset[T_co]):
         item["repacked_action"] = repacked.astype(np.float32)
         return item
 
-def create_behavior_dataset(data_config: _config.DataConfig, action_horizon: int) -> Dataset:
+def create_behavior_ik_dataset(data_config: _config.DataConfig, action_horizon: int) -> Dataset:
     """Create a dataset for training."""
     from omnigibson.learning.datas.lerobot_dataset import BehaviorLeRobotDataset
     
@@ -348,17 +348,28 @@ def create_behavior_dataset(data_config: _config.DataConfig, action_horizon: int
     )
 
     dataset = AddRepackedAction(dataset)
-    #for i in range(num_samples):
-    #    if i == num_samples - 1:
-    #        dataset[i]["action"] = repack_action(dataset[i]["action"],
-    #                            dataset[i]["observation.state"],
-    #                            dataset[i]["observation.state"],
-    #                            dataset[i]["timestamp"] - dataset[i]["timestamp"])
-    #    else:
-    #        dataset[i]["action"] = repack_action(dataset[i]["action"],
-    #                            dataset[i]["observation.state"],
-    #                            dataset[i+1]["observation.state"],
-    #                            dataset[i+1]["timestamp"] - dataset[i]["timestamp"])
+
+    if data_config.prompt_from_task:
+        dataset = TransformedDataset(dataset, [_transforms.PromptFromLeRobotTask(dataset.meta.tasks)])
+    return dataset
+
+def create_behavior_dataset(data_config: _config.DataConfig, action_horizon: int) -> Dataset:
+    """Create a dataset for training."""
+    from omnigibson.learning.datas.lerobot_dataset import BehaviorLeRobotDataset
+    
+    dataset = BehaviorLeRobotDataset(
+        repo_id=data_config.repo_id,
+        root=data_config.behavior_dataset_root,
+        tasks=["turning_on_radio"],
+        modalities=["rgb"],
+        local_only=True,
+        delta_timestamps={
+            key: [t / 30.0 for t in range(action_horizon)] for key in data_config.action_sequence_keys
+        },
+        episodes=data_config.episodes_index,
+        chunk_streaming_using_keyframe=True,
+        shuffle=True,
+    )
 
     if data_config.prompt_from_task:
         dataset = TransformedDataset(dataset, [_transforms.PromptFromLeRobotTask(dataset.meta.tasks)])

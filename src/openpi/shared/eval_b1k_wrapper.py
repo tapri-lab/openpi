@@ -202,7 +202,7 @@ class B1KPolicyWrapper():
             new_actions = deque(target_joint_positions)
             self.action_queue.append(new_actions)
             actions_current_timestep = np.empty((len(self.action_queue), target_joint_positions.shape[1]))
-            
+
             # k = 0.01
             k = 0.005
             for i, q in enumerate(self.action_queue):
