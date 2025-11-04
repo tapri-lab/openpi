@@ -826,7 +826,7 @@ _CONFIGS = [
             repo_id="behavior-1k/2025-challenge-demos",
             base_config=DataConfig(
                 prompt_from_task=True,
-                episodes_index=list(range(190)),
+                episodes_index=list(range(5)),
                 behavior_dataset_root="/home/behavior-1k/Documents/2025-challenge-demos",
             ),
         ),

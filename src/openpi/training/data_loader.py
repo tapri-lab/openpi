@@ -336,7 +336,7 @@ def create_behavior_ik_dataset(data_config: _config.DataConfig, action_horizon: 
     dataset = BehaviorLeRobotDataset(
         repo_id=data_config.repo_id,
         root=data_config.behavior_dataset_root,
-        tasks=["turning_on_radio"],
+        #tasks=["turning_on_radio"],
         modalities=["rgb"],
         local_only=True,
         delta_timestamps={
