@@ -272,25 +272,6 @@ def rotation_matrix_to_rotvec(R):
         axis = np.array([rx, ry, rz])
         return axis * angle
 
-def repack_action(action, obs, next_obs, delta_t):
-    from omnigibson.learning.utils.eval_utils import PROPRIOCEPTION_INDICES, ACTION_QPOS_INDICES
-
-    eef_left_lin_vel = (next_obs[..., PROPRIOCEPTION_INDICES["R1Pro"]["eef_left_pos"]] - obs[..., PROPRIOCEPTION_INDICES["R1Pro"]["eef_left_pos"]])
-    eef_right_lin_vel = (next_obs[..., PROPRIOCEPTION_INDICES["R1Pro"]["eef_right_pos"]] - obs[..., PROPRIOCEPTION_INDICES["R1Pro"]["eef_right_pos"]])
-    eef_left_ang_vel = angular_velocity_from_quaternions(next_obs[..., PROPRIOCEPTION_INDICES["R1Pro"]["eef_left_quat"]],
-                                                            obs[..., PROPRIOCEPTION_INDICES["R1Pro"]["eef_left_quat"]])
-    eef_right_ang_vel = angular_velocity_from_quaternions(next_obs[..., PROPRIOCEPTION_INDICES["R1Pro"]["eef_right_quat"]],
-                                                            obs[..., PROPRIOCEPTION_INDICES["R1Pro"]["eef_right_quat"]])
-    return np.concatenate([
-        action[..., ACTION_QPOS_INDICES["R1Pro"]["base"]],
-        action[..., ACTION_QPOS_INDICES["R1Pro"]["torso"]],
-        np.broadcast_to(eef_left_lin_vel, (action.shape[0], eef_left_lin_vel.shape[-1])),
-        np.broadcast_to(eef_left_ang_vel, (action.shape[0], eef_left_ang_vel.shape[-1])),
-        action[..., ACTION_QPOS_INDICES["R1Pro"]["left_gripper"]],
-        np.broadcast_to(eef_right_lin_vel, (action.shape[0], eef_right_lin_vel.shape[-1])),
-        np.broadcast_to(eef_right_ang_vel, (action.shape[0], eef_right_ang_vel.shape[-1])),
-        action[..., ACTION_QPOS_INDICES["R1Pro"]["right_gripper"]],
-    ], axis=-1)
 
 from omnigibson.learning.datas.lerobot_dataset import BehaviorLeRobotDataset
 class AddRepackedAction(Dataset[T_co]):
@@ -303,30 +284,46 @@ class AddRepackedAction(Dataset[T_co]):
     def __len__(self):
         return len(self.base_dataset)
 
+    def _repack_action(self, index):
+        from omnigibson.learning.utils.eval_utils import PROPRIOCEPTION_INDICES, ACTION_QPOS_INDICES
+
+        idx = index
+        action = self.base_dataset[idx]["action"]
+        left_lin_action = np.zeros((action.shape[0], 3))
+        left_ang_action = np.zeros((action.shape[0], 3))
+        right_lin_action = np.zeros((action.shape[0], 3))
+        right_ang_action = np.zeros((action.shape[0], 3))
+
+        obs = self.base_dataset[idx]["observation.state"]
+        next_obs = self.base_dataset[idx]["observation.state"]
+
+        for i in range(1, action.shape[0]):
+            if idx+i < len(self.base_dataset):
+                obs = self.base_dataset[idx+i]["observation.state"]
+                next_obs = self.base_dataset[idx+i+1]["observation.state"]
+            elif idx+i == len(self.base_dataset):
+                obs = self.base_dataset[idx+i]["observation.state"]
+            left_lin_action[i] = (next_obs[..., PROPRIOCEPTION_INDICES["R1Pro"]["eef_left_pos"]] - obs[..., PROPRIOCEPTION_INDICES["R1Pro"]["eef_left_pos"]]).reshape(3)
+            right_lin_action[i] = (next_obs[..., PROPRIOCEPTION_INDICES["R1Pro"]["eef_right_pos"]] - obs[..., PROPRIOCEPTION_INDICES["R1Pro"]["eef_right_pos"]]).reshape(3)
+            left_ang_action[i] = angular_velocity_from_quaternions(next_obs[..., PROPRIOCEPTION_INDICES["R1Pro"]["eef_left_quat"]],
+                                                                    obs[..., PROPRIOCEPTION_INDICES["R1Pro"]["eef_left_quat"]]).reshape(3)
+            right_ang_action = angular_velocity_from_quaternions(next_obs[..., PROPRIOCEPTION_INDICES["R1Pro"]["eef_right_quat"]],
+                                                                    obs[..., PROPRIOCEPTION_INDICES["R1Pro"]["eef_right_quat"]]).reshape(3)
+        return np.concatenate([
+            action[..., ACTION_QPOS_INDICES["R1Pro"]["base"]],
+            action[..., ACTION_QPOS_INDICES["R1Pro"]["torso"]],
+            left_lin_action,
+            left_ang_action,
+            action[..., ACTION_QPOS_INDICES["R1Pro"]["left_gripper"]],
+            right_lin_action,
+            right_ang_action,
+            action[..., ACTION_QPOS_INDICES["R1Pro"]["right_gripper"]],
+        ], axis=-1)
+
     def __getitem__(self, idx):
+        action = self._repack_action(idx)
         item = self.base_dataset[idx]
-        if idx + 1 < len(self.base_dataset):
-            next_item = self.base_dataset[idx + 1]
-            # ensure same episode
-            if next_item["episode_index"] != item["episode_index"]:
-                next_item = item
-        else:
-            next_item = item
-
-        obs = item["observation.state"]
-        next_obs = next_item["observation.state"]
-        delta_t = float(next_item["timestamp"] - item["timestamp"])
-        if delta_t == 0:
-            delta_t = 1e-8
-
-        repacked = repack_action(
-            np.asarray(item["action"]),
-            np.asarray(obs),
-            np.asarray(next_obs),
-            delta_t
-        )
-
-        item["repacked_action"] = repacked.astype(np.float32)
+        item["action"] = action
         return item
 
 def create_behavior_ik_dataset(data_config: _config.DataConfig, action_horizon: int) -> Dataset:
