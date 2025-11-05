@@ -70,8 +70,8 @@ class B1kInputs(transforms.DataTransformFn):
         proprio_data = data["observation/state"]
         # extract joint position
         state = extract_state_from_proprio(proprio_data)
-        if "actions" in data:
-            action =  data["actions"][:, :21]
+        if "repacked_action" in data:
+            action =  data["repacked_action"][:, :21]
 
         # Possibly need to parse images to uint8 (H,W,C) since LeRobot automatically
         # stores as float32 (C,H,W), gets skipped for policy inference
@@ -98,7 +98,7 @@ class B1kInputs(transforms.DataTransformFn):
             "image_mask": dict(zip(names, image_masks, strict=True)),
         }
 
-        if "actions" in data:
+        if "repacked_action" in data:
             inputs["actions"] = action
 
         if "prompt" in data:
@@ -112,5 +112,5 @@ class B1kOutputs(transforms.DataTransformFn):
     action_dim: int = 21
     def __call__(self, data: dict) -> dict:
         # Only return the first 21 dims.
-        actions = data["actions"]
+        actions = data["repacked_action"]
         return {"actions": np.asarray(actions[:, :self.action_dim])}
