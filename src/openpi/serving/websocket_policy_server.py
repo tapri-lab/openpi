@@ -59,6 +59,8 @@ class WebsocketPolicyServer:
 
                 infer_time = time.monotonic()
                 action = self._policy.infer(obs)
+                action[10:13] *= -1
+                action[17:20] *= -1
                 infer_time = time.monotonic() - infer_time
 
                 action["server_timing"] = {
